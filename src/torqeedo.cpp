@@ -34,6 +34,7 @@ void TorqeedoMotor::begin(uint8_t ser,uint8_t tx, uint8_t rx, uint8_t rts, uint8
     _rts = rts;
     _onoff = onoff;
     _type == ConnectionType::TYPE_TILLER;
+    _starttime = millis();
     
     pinMode(_rts, OUTPUT); 
     pinMode(_onoff, OUTPUT);
@@ -53,15 +54,22 @@ void TorqeedoMotor::Off()
     digitalWrite(_onoff, LOW);
 }
 
-void TorqeedoMotor::loop() 
+void TorqeedoMotor::loop(int16_t throttleOrder) 
 {
+    _initialised = true;
+    _throttleOrder = throttleOrder;
+
+    // 1ms loop delay
+    delay(1);
+
     // check if transmit pin should be unset
-    // check_for_send_end();
+    check_for_send_end();
+
+    // check for timeout waiting for reply
+    check_for_reply_timeout();
 
     // parse incoming characters
     uint32_t nbytes = Serial1.available();
-    // Serial.print("# bytes : " );
-    // Serial.println(nbytes);
     while (nbytes-- > 0) {
         int16_t b = Serial1.read();
         if (b >= 0 ) {
@@ -76,22 +84,23 @@ void TorqeedoMotor::loop()
 
     // send motor speed
     bool log_update = false;
-    // if (safe_to_send()) {
+    if (safe_to_send()) {
+        uint32_t now_ms = millis();
 
         // if connected to motor
         if (_type == ConnectionType::TYPE_MOTOR) {
             
         }
 
+        
         // send motor speed
         if (_send_motor_speed) {
             send_motor_speed_cmd();
             _send_motor_speed = false;
             log_update = true;
         }
-    // }
+    }
 }
-
 
 /*
  CRC8-Maxim implementation based on FastCRC library
@@ -230,7 +239,7 @@ void TorqeedoMotor::parse_message()
     //     return;
     // }
 
-    if (msg_addr == MsgAddress::REMOTE1) {
+    if ((msg_addr == MsgAddress::REMOTE1)) {
         RemoteMsgId msg_id = (RemoteMsgId)_received_buff[1];
         // Serial.println("Speed request Msg");
         if (msg_id == RemoteMsgId::REMOTE) {
@@ -242,52 +251,99 @@ void TorqeedoMotor::parse_message()
     
 
     // handle messages sent to Display
-    // if ((_type == ConnectionType::TYPE_TILLER) && (msg_addr == MsgAddress::LCD)) {
-    //     DisplayMsgId msg_id = (DisplayMsgId)_received_buff[1];
-    //     switch (msg_id) {
-    //     case DisplayMsgId::SYSTEM_STATE :
-    //         if (_received_buff_len == 30) {
-    //             Serial.println("Dispay State Msg");
-    //         } else {
-    //             // unexpected length
-    //             _parse_error_count++;
-    //         }
-    //         break;
-    //     case DisplayMsgId::SYSTEM_SETUP:
-    //         if (_received_buff_len == 13) {
-    //             Serial.println("Dispay Setup Msg");
+    if ((msg_addr == MsgAddress::LCD)) {
+        DisplayMsgId msg_id = (DisplayMsgId)_received_buff[1];
+        switch (msg_id) {
+        case DisplayMsgId::SYSTEM_STATE :
+            if (_received_buff_len == 30) {
                 
-    //         } else {
-    //             // unexpected length
-    //             Serial.println("Error parsing Msg");
-    //             _parse_error_count++;
-    //         }
-    //         break;
-    //     default:
-    //         // ignore message
-    //         break;
-    //     }
-    //     return;
-    // }
+                _display_system_state.flags.value = UINT16_VALUE(_received_buff[2], _received_buff[3]);
+                _display_system_state.master_state = _received_buff[4]; // deprecated
+                _display_system_state.master_error_code = _received_buff[5];
+                _display_system_state.motor_voltage = UINT16_VALUE(_received_buff[6], _received_buff[7]) * 0.01;
+                _display_system_state.motor_current = UINT16_VALUE(_received_buff[8], _received_buff[9]) * 0.1;
+                _display_system_state.motor_power = UINT16_VALUE(_received_buff[10], _received_buff[11]);
+                _display_system_state.motor_rpm = (int16_t)UINT16_VALUE(_received_buff[12], _received_buff[13]);
+                _display_system_state.motor_pcb_temp = _received_buff[14];
+                _display_system_state.motor_stator_temp = _received_buff[15];
+                _display_system_state.batt_charge_pct = _received_buff[16];
+                _display_system_state.batt_voltage = UINT16_VALUE(_received_buff[17], _received_buff[18]) * 0.01;
+                _display_system_state.batt_current = UINT16_VALUE(_received_buff[19], _received_buff[20]) * 0.1;
+                _display_system_state.gps_speed = UINT16_VALUE(_received_buff[21], _received_buff[22]);
+                _display_system_state.range_miles = UINT16_VALUE(_received_buff[23], _received_buff[24]);
+                _display_system_state.range_minutes = UINT16_VALUE(_received_buff[25], _received_buff[26]);
+                _display_system_state.temp_sw = _received_buff[27];
+                _display_system_state.temp_rp = _received_buff[28];
+                _display_system_state.last_update_ms = millis();
+                
+                // // update esc telem sent to ground station
+                const uint8_t esc_temp = max(_display_system_state.temp_sw, _display_system_state.temp_rp);
+                const uint8_t motor_temp = max(_display_system_state.motor_pcb_temp, _display_system_state.motor_stator_temp);
+                // update_esc_telem(_display_system_state.motor_rpm,
+                //         _display_system_state.motor_voltage,
+                //         _display_system_state.motor_current,
+                //         esc_temp,
+                //         motor_temp);
+
+                Serial.print("Dispay Motor State Msg: ");
+                Serial.print("Voltage: ");Serial.print(_display_system_state.motor_voltage);Serial.print(" ,");
+                Serial.print("RPM: ");Serial.print(_display_system_state.motor_rpm);Serial.print(" ,");
+                Serial.print("Temp Motor: ");Serial.print(motor_temp);Serial.print(" ,");
+                Serial.println();
+            } else {
+                // unexpected length
+                _parse_error_count++;
+            }
+            break;
+        case DisplayMsgId::SYSTEM_SETUP:
+            if (_received_buff_len == 13) {
+                // fill in display system setup
+                _display_system_setup.flags = _received_buff[2];
+                _display_system_setup.motor_type = _received_buff[3];
+                _display_system_setup.motor_sw_version = UINT16_VALUE(_received_buff[4], _received_buff[5]);
+                _display_system_setup.batt_capacity = UINT16_VALUE(_received_buff[6], _received_buff[7]);
+                _display_system_setup.batt_charge_pct = _received_buff[8];
+                _display_system_setup.batt_type = _received_buff[9];
+                _display_system_setup.master_sw_version =  UINT16_VALUE(_received_buff[10], _received_buff[11]);
+
+                Serial.println("Dispay Setup Msg :");
+                Serial.print("Motor Type: ");Serial.print(_display_system_setup.motor_type);Serial.print(" ,");
+                Serial.print("SW Version: ");Serial.print(_display_system_setup.motor_sw_version);Serial.print(" ,");
+                Serial.print("Bat Level: ");Serial.print(_display_system_setup.batt_charge_pct);Serial.println("");
+
+                
+            } else {
+                // unexpected length
+                Serial.println("Error parsing Msg");
+                _parse_error_count++;
+            }
+            break;
+        default:
+            // ignore message
+            break;
+        }
+        return;
+    }
 
     // // handle reply from motor
-    // if ((_type == ConnectionType::TYPE_MOTOR) && (msg_addr == MsgAddress::BUS_MASTER)) {
+    // if ((msg_addr == MsgAddress::BUS_MASTER)) {
     //     // replies strangely do not return the msgid so we must have stored it
     //     MotorMsgId msg_id = (MotorMsgId)_reply_msgid;
     //     switch (msg_id) {
 
     //     case MotorMsgId::PARAM:
     //         if (_received_buff_len == 15) {
-                
+    //             // Serial.print("Motor parameters");
     //         } else {
     //             // unexpected length
+                
     //             _parse_error_count++;
     //         }
     //         break;
 
     //     case MotorMsgId::STATUS:
     //         if (_received_buff_len == 6) {
-                
+    //             Serial.print("Motor Status");
     //         } else {
     //             // unexpected length
     //             _parse_error_count++;
@@ -305,6 +361,15 @@ void TorqeedoMotor::parse_message()
     //         break;
     //     }
     // }
+}
+
+// Convert 2 Hex bytes received to unsigned int 16 bits
+uint16_t TorqeedoMotor::UINT16_VALUE(uint8_t byteH, uint8_t byteL)
+{ 
+    unsigned long MSB = byteH << 8;
+    unsigned long LSB = byteL;
+    uint16_t result = MSB + LSB;
+    return result;
 }
 
 // Example "Remote (0x01)" reply message to allow tiller to control motor speed
@@ -329,13 +394,24 @@ void TorqeedoMotor::parse_message()
 // for motor connection this sends the "Motor Drive (0x82)" message
 void TorqeedoMotor::send_motor_speed_cmd()
 {
-    _motor_speed_desired = 500;
+    // if (millis() - _starttime < 2000) {
+    //     _motor_speed_desired = 0;
+    // } 
+    // if (millis() - _starttime > 2000 && millis() - _starttime < 4000) {
+    //     _motor_speed_desired = 104;
+    // } 
+    // if (millis() - _starttime > 4000) {
+    //     _motor_speed_desired = 237;
+    // } 
+
+    _motor_speed_desired = _throttleOrder;
+    
     // Serial.println("Sending speed command");
     // updated limited motor speed
     int16_t mot_speed_limited = calc_motor_speed_limited(_motor_speed_desired);
 
     // by default use tiller connection command
-    uint8_t mot_speed_cmd_buff[] = {(uint8_t)MsgAddress::BUS_MASTER, 0x0, 0x5, 0x0, highByte(_motor_speed_desired), lowByte(_motor_speed_desired)};
+    uint8_t mot_speed_cmd_buff[] = {(uint8_t)MsgAddress::BUS_MASTER, 0x0, 0x5, 0x0, highByte(mot_speed_limited), lowByte(mot_speed_limited)};
 
     // update message if using motor connection
     if (_type == ConnectionType::TYPE_MOTOR) {
@@ -367,6 +443,69 @@ void TorqeedoMotor::send_motor_speed_cmd()
 // desired_motor_speed argument and returned value are in the range -1000 to 1000
 int16_t TorqeedoMotor::calc_motor_speed_limited(int16_t desired_motor_speed)
 {
+    const uint32_t now_ms = millis();
+
+    // update dir_limit flag for forward-reverse transition delay
+    const bool dir_delay_active = (_dir_delay > 0);
+    if (!dir_delay_active) {
+        // allow movement in either direction
+        _dir_limit = 0;
+    } else {
+        // by default limit motor direction to previous iteration's direction
+        if (_motor_speed_limited > 0) {
+            _dir_limit = 1;
+        } else if (_motor_speed_limited < 0) {
+            _dir_limit = -1;
+        } else {
+            // motor speed is zero
+            if ((_motor_speed_zero_ms != 0) && ((now_ms - _motor_speed_zero_ms) > (_dir_delay * 1000))) {
+                // delay has passed so allow movement in either direction
+                _dir_limit = 0;
+                _motor_speed_zero_ms = 0;
+            }
+        }
+    }
+
+    // calculate upper and lower limits for forward-reverse transition delay
+    int16_t lower_limit = -1000;
+    int16_t upper_limit = 1000;
+    if (_dir_limit < 0) {
+        upper_limit = 0;
+    }
+    if (_dir_limit > 0) {
+        lower_limit = 0;
+    }
+
+    // calculate dt since last update
+    float dt = (now_ms - _motor_speed_limited_ms) * 0.001f;
+    if (dt > 1.0) {
+        // after a long delay limit motor output to zero to avoid sudden starts
+        lower_limit = 0;
+        upper_limit = 0;
+    }
+    _motor_speed_limited_ms = now_ms;
+
+    // apply slew limit
+    if (_slew_time > 0) {
+       const float chg_max = 1000.0 * dt / _slew_time;
+       _motor_speed_limited = constrain(desired_motor_speed, _motor_speed_limited - chg_max, _motor_speed_limited + chg_max);
+    } else {
+        // no slew limit
+        _motor_speed_limited = desired_motor_speed;
+    }
+
+    // apply upper and lower limits
+    _motor_speed_limited = constrain(_motor_speed_limited, lower_limit, upper_limit);
+
+    // record time motor speed becomes zero
+    if (_motor_speed_limited == 0) {
+        if (_motor_speed_zero_ms == 0) {
+            _motor_speed_zero_ms = now_ms;
+        }
+    } else {
+        // clear timer
+        _motor_speed_zero_ms = 0;
+    }
 
     return (int16_t)_motor_speed_limited;
 }
@@ -407,32 +546,45 @@ bool TorqeedoMotor::send_message(const uint8_t msg_contents[], uint8_t num_bytes
         return false;
     }
     send_buff[send_buff_num_bytes++] = TORQEEDO_PACKET_FOOTER;
+    send_buff[send_buff_num_bytes++] = '\xFF';
+
 
     // for (uint8_t i=0; i<send_buff_num_bytes ; i++) {
     //     Serial.print(send_buff[i], HEX);
     //     Serial.print(" ");
     // }   
     // Serial.println("");
-
+    
     // set send pin
-    
-    send_buff[5] = 0xff;
-    send_buff[6] = 0xe5;
-    send_buff[7] = 0xd6;
-    // write message
-    
-    
     send_start();
+
+    // write message
     Serial1.write(send_buff, send_buff_num_bytes);
     
-    for (uint8_t i=0; i<send_buff_num_bytes ; i++) {
-        Serial.print(send_buff[i], HEX);
-        Serial.print(" ");
-    }   
-    Serial.println("");
-    digitalWrite(_rts,0);
+    // record start and expected delay to send message
+    _send_start_us = micros();
+    _send_delay_us = calc_send_delay_us(send_buff_num_bytes);
+
+    // for (uint8_t i=0; i<send_buff_num_bytes ; i++) {
+    //     Serial.print(send_buff[i], HEX);
+    //     Serial.print(" ");
+    // }   
+    // Serial.println("");
+    // delay(6);
+    // digitalWrite(_rts,0);
 
     return true;
+}
+
+// calculate delay require to allow bytes to be sent
+uint32_t TorqeedoMotor::calc_send_delay_us(uint8_t num_bytes)
+{
+    // baud rate of 19200 bits/sec
+    // total number of bits = 10 x num_bytes
+    // convert from seconds to micros by multiplying by 1,000,000
+    // plus additional 300us safety margin
+    const uint32_t delay_us = 1e6 * num_bytes * 10 / TORQEEDO_SERIAL_BAUD + 300;
+    return delay_us;
 }
 
 // add a byte to a message buffer including adding the escape character (0xAE) if necessary
@@ -481,11 +633,81 @@ void TorqeedoMotor::debug(uint16_t buffer_size)
 void TorqeedoMotor::set_expected_reply_msgid(uint8_t msg_id)
 {
     _reply_msgid = msg_id;
+    _reply_wait_start_ms = millis();
 }
 
 // check for timeout after sending and unset pin if required
 void TorqeedoMotor::check_for_send_end()
 {
+    if (_send_delay_us == 0) {
+        // not sending
+        return;
+    }
+
+    if (micros() - _send_start_us < _send_delay_us) {
+        // return if delay has not yet elapsed
+        return;
+    }
+
+    _send_delay_us = 0;
+
     // unset gpio or serial port's CTS pin
     digitalWrite(_rts, 0);
 }
+
+// check for timeout waiting for reply message
+void TorqeedoMotor::check_for_reply_timeout()
+{
+    // return immediately if not waiting for reply
+    if (_reply_wait_start_ms == 0) {
+        return;
+    }
+    if (millis() - _reply_wait_start_ms > TORQEEDO_REPLY_TIMEOUT_MS) {
+        _reply_wait_start_ms = 0;
+        _parse_error_count++;
+    }
+}
+
+// returns a human-readable string corresponding the the passed-in
+// master error code (see page 93 of https://media.torqeedo.com/downloads/manuals/torqeedo-Travel-manual-DE-EN.pdf)
+// If no conversion is available then nullptr is returned
+// const char * TorqeedoMotor::map_master_error_code_to_string(uint8_t code) const
+// {
+//     switch (code) {
+//     case 2:
+//         return "stator high temp";
+//     case 5:
+//         return "propeller blocked";
+//     case 6:
+//         return "motor low voltage";
+//     case 7:
+//         return "motor high current";
+//     case 8:
+//         return "pcb temp high";
+//     case 21:
+//         return "tiller cal bad";
+//     case 22:
+//         return "mag bad";
+//     case 23:
+//         return "range incorrect";
+//     case 30:
+//         return "motor comm error";
+//     case 32:
+//         return "tiller comm error";
+//     case 33:
+//         return "general comm error";
+//     case 41:
+//     case 42:
+//         return "charge voltage bad";
+//     case 43:
+//         return "battery flat";
+//     case 45:
+//         return "battery high current";
+//     case 46:
+//         return "battery temp error";
+//     case 48:
+//         return "charging temp error";
+//     }
+
+//     return nullptr;
+// }

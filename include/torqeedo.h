@@ -26,6 +26,8 @@ class TorqeedoMotor
     int _rx;
     int _rts;
     int _onoff;
+    int32_t _starttime;
+    int16_t _throttleOrder;
 
         // parameters
     
@@ -154,12 +156,23 @@ class TorqeedoMotor
         uint32_t last_update_ms;        // system time that system state was last updated
     } _display_system_state;
 
+    // Display system setup
+    struct DisplaySystemSetup {
+        uint8_t flags;              // 0 : battery config valid, all other bits unused
+        uint8_t motor_type;         // motor type (0 or 3:Unknown, 1:Ultralight, 2:Cruise2, 4:Cruise4, 5:Travel503, 6:Travel1003, 7:Cruise10kW)
+        uint16_t motor_sw_version;  // motor software version
+        uint16_t batt_capacity;     // battery capacity in amp hours
+        uint8_t batt_charge_pct;    // battery state of charge (0 to 100%)
+        uint8_t batt_type;          // battery type (0:lead acid, 1:Lithium)
+        uint16_t master_sw_version; // master software version
+    } _display_system_setup;
+
   public:
     TorqeedoMotor() { }
     void begin(uint8_t ser,uint8_t tx, uint8_t rx, uint8_t rts, uint8_t onoff);
 
     // consume incoming messages from motor, reply with latest motor speed
-    void loop();
+    void loop(int16_t throttleOrder);
 
     // Turn On Battery using OnOff pin
     void On();
@@ -207,9 +220,12 @@ class TorqeedoMotor
     // record msgid of message to wait for and set timer for reply timeout handling
     void set_expected_reply_msgid(uint8_t msg_id);
 
+    // check for timeout waiting for reply
+    void check_for_reply_timeout();
+
     // check for timeout after sending a message and unset pin if required
     void check_for_send_end();
-    
+
     void debug(uint16_t buffer_size);
 
     // calculate the limited motor speed that is sent to the motors
@@ -217,7 +233,9 @@ class TorqeedoMotor
     int16_t calc_motor_speed_limited(int16_t desired_motor_speed);
     int16_t get_motor_speed_limited() const { return (int16_t)_motor_speed_limited; }
 
+    uint16_t UINT16_VALUE(uint8_t byteH, uint8_t byteL);
 
+    uint32_t calc_send_delay_us(uint8_t num_bytes);
 
 //    void tx();
 //    void rx();

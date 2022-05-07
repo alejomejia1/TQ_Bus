@@ -12,6 +12,21 @@ CRC8 crc8;
 // Initialize TorqeedoMotor class
 TorqeedoMotor leftMotor;
 
+// Steering Setup
+const int SteeringSignalPin = 19;  // MUST be interrupt-capable!
+const int SteeringPulseMin = 1000;  // microseconds (us)
+const int SteeringPulseMax = 2000;  // Ideal values for your servo can be found with the "Calibration" example
+
+ServoInputPin<SteeringSignalPin> steering(SteeringPulseMin, SteeringPulseMax);
+
+// Throttle Setup
+const int ThrottleSignalPin = 23;  // MUST be interrupt-capable!
+const int ThrottlePulseMin = 1000;  // microseconds (us)
+const int ThrottlePulseMax = 2000;  // Ideal values for your servo can be found with the "Calibration" example
+
+ServoInputPin<ThrottleSignalPin> throttle(ThrottlePulseMin, ThrottlePulseMax);
+
+
 void ledOn(){
   tp.DotStar_SetPixelColor( 255, 128, 0 );
 }
@@ -42,10 +57,14 @@ void setup() {
 uint32_t startTime = millis();
 
 void loop() {
-  
-
-  if ((millis() - startTime < 10000) ) {
-    leftMotor.loop();
+  int16_t throttleOrder = throttle.map(-1000, 1000);  // remap to a percentage both forward and reverse
+  // Serial.print("Throttle: ");Serial.println(throttleOrder);
+  if (throttleOrder > -100 && throttleOrder < 100) {
+    throttleOrder = 0;
+  }
+  if ((millis() - startTime < 20000) ) {
+    
+    leftMotor.loop(throttleOrder);
   } else {
     leftMotor.Off();
   }
