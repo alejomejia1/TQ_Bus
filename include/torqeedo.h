@@ -26,6 +26,8 @@ class TorqeedoMotor
     int _rx;
     int _rts;
     int _onoff;
+    int _ser;
+    int _order;
     int32_t _starttime;
     int16_t _throttleOrder;
 
@@ -167,12 +169,13 @@ class TorqeedoMotor
         uint16_t master_sw_version; // master software version
     } _display_system_setup;
 
+
   public:
     TorqeedoMotor() { }
     void begin(uint8_t ser,uint8_t tx, uint8_t rx, uint8_t rts, uint8_t onoff);
 
     // consume incoming messages from motor, reply with latest motor speed
-    void loop(int16_t throttleOrder);
+    void loop();
 
     // Turn On Battery using OnOff pin
     void On();
@@ -226,7 +229,11 @@ class TorqeedoMotor
     // check for timeout after sending a message and unset pin if required
     void check_for_send_end();
 
+    int16_t getOrder();
+
     void debug(uint16_t buffer_size);
+
+    const char * map_master_error_code_to_string(uint8_t code);
 
     // calculate the limited motor speed that is sent to the motors
     // desired_motor_speed argument and returned value are in the range -1000 to 1000
