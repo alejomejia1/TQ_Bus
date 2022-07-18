@@ -15,6 +15,8 @@
 #define TORQEEDO_REPLY_TIMEOUT_MS                       25      // stop waiting for replies after 25ms
 #define TORQEEDO_ERROR_REPORT_INTERVAL_MAX_MS           10000   // errors reported to user at no less than once every 10 seconds
 
+#define THROTLE_PIN 23
+#define MIX_PIN 19
 
 
 void TorqeedoMotor::begin(uint8_t ser,uint8_t tx, uint8_t rx, uint8_t rts, uint8_t onoff)
@@ -40,9 +42,6 @@ void TorqeedoMotor::begin(uint8_t ser,uint8_t tx, uint8_t rx, uint8_t rts, uint8
         digitalWrite(_rts,0);
         
     }
-
-    
-    
     
 }
 
@@ -62,17 +61,28 @@ void TorqeedoMotor::Off()
 
 int16_t TorqeedoMotor::getOrder() {
     int16_t channel;
-    channel = pulseIn(23,HIGH);
+    int16_t channel1;
+
+    channel = pulseIn(THROTLE_PIN,HIGH);
+    // channel1 = pulseIn(MIX_PIN,HIGH);
+
+
+    // channel1 = 1500;
+
     int16_t throttleOrder = map(channel, 998, 2000, -1000, 1000);
-    if (throttleOrder > -50 && throttleOrder < 50) throttleOrder = 0;
+    int16_t mixOrder = map(channel1, 998, 2000, -1000, 1000);
+
+    if (throttleOrder > -60 && throttleOrder < 60) throttleOrder = 0;
+
     Serial.print("Pulse:"); Serial.println(throttleOrder);
+    Serial.print("Mix:"); Serial.println(mixOrder);
     return throttleOrder;
 }
 
-void TorqeedoMotor::loop() 
+void TorqeedoMotor::loop(int16_t throttleOrder) 
 {
     _initialised = true;
-    _throttleOrder = _order;
+    _throttleOrder = throttleOrder;
 
     // 1ms loop delay
     delay(1);
@@ -643,8 +653,8 @@ void TorqeedoMotor::send_motor_speed_cmd()
     //     _motor_speed_desired = 237;
     // } 
 
-    Serial.print("Throttle Order:");
-    Serial.println(_throttleOrder);
+    // Serial.print("Throttle Order:");
+    // Serial.println(_throttleOrder);
 
     _motor_speed_desired = _throttleOrder;
     
@@ -652,8 +662,8 @@ void TorqeedoMotor::send_motor_speed_cmd()
     // updated limited motor speed
     int16_t mot_speed_limited = calc_motor_speed_limited(_motor_speed_desired);
 
-    Serial.print("Throttle Order limited:");
-    Serial.println(_motor_speed_desired);
+    // Serial.print("Throttle Order limited:");
+    // Serial.println(_motor_speed_desired);
     // by default use tiller connection command
     uint8_t mot_speed_cmd_buff[] = {(uint8_t)MsgAddress::BUS_MASTER, 0x0, 0x5, 0x0, highByte(mot_speed_limited), lowByte(mot_speed_limited)};
 
@@ -680,7 +690,7 @@ void TorqeedoMotor::send_motor_speed_cmd()
     if (send_message(mot_speed_cmd_buff, sizeof(mot_speed_cmd_buff))) {
         // record time of send for health reporting
         // set_expected_reply_msgid((uint8_t)msg_id);
-        _order = getOrder();
+        // _order = getOrder();
         Serial.print(millis());
         Serial.println(" Speed cmd snd");
         

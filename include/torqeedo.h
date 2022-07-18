@@ -224,7 +224,7 @@ class TorqeedoMotor
     void begin(uint8_t ser,uint8_t tx, uint8_t rx, uint8_t rts, uint8_t onoff);
 
     // consume incoming messages from motor, reply with latest motor speed
-    void loop();
+    void loop(int16_t throttleOrder);
 
     // Turn On Battery using OnOff pin
     void On();

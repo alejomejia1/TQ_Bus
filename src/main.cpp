@@ -13,19 +13,49 @@ CRC8 crc8;
 TorqeedoMotor leftMotor;
 TorqeedoMotor rightMotor;
 
-// Steering Setup
-const int SteeringSignalPin = 18;  // MUST be interrupt-capable!
-const int SteeringPulseMin = 1000;  // microseconds (us)
-const int SteeringPulseMax = 2000;  // Ideal values for your servo can be found with the "Calibration" example
+#define THROTLE_PIN 23
+#define MIX_PIN 19
 
-// ServoInputPin<SteeringSignalPin> steering(SteeringPulseMin, SteeringPulseMax);
 
-// Throttle Setup
-const int ThrottleSignalPin = 23;  // MUST be interrupt-capable!
-const int ThrottlePulseMin = 1000;  // microseconds (us)
-const int ThrottlePulseMax = 2000;  // Ideal values for your servo can be found with the "Calibration" example
 
-// ServoInputPin<ThrottleSignalPin> throttle(ThrottlePulseMin, ThrottlePulseMax);
+// Throttle
+volatile unsigned long pulseInTimeBegin = micros();
+volatile unsigned long pulseInTimeEnd = micros();
+volatile bool newPulseDurationAvailable = false;
+volatile int16_t throttleOrder = 0;
+
+
+// Mix
+volatile unsigned long mixInTimeBegin = micros();
+volatile unsigned long mixInTimeEnd = micros();
+volatile bool newMixDurationAvailable = false;
+volatile int16_t mixOrder = 0;
+
+void throttlePinInterrupt()
+{
+  if (digitalRead(THROTLE_PIN) == HIGH) {
+    // start measuring
+    pulseInTimeBegin = micros();
+  }
+  else {
+    // stop measuring
+    pulseInTimeEnd = micros();
+    newPulseDurationAvailable = true;
+  }
+}
+
+void mixPinInterrupt()
+{
+  if (digitalRead(MIX_PIN) == HIGH) {
+    // start measuring
+    mixInTimeBegin = micros();
+  }
+  else {
+    // stop measuring
+    mixInTimeEnd = micros();
+    newMixDurationAvailable = true;
+  }
+}
 
 
 void ledOn(){
@@ -54,9 +84,22 @@ void setup() {
   leftMotor.On();   // Turn On left motor
   rightMotor.On();  // Turn On right motor
 
+  pinMode(THROTLE_PIN, INPUT);
+  attachInterrupt(digitalPinToInterrupt(THROTLE_PIN),
+                  throttlePinInterrupt,
+                  CHANGE);
+
+  pinMode(MIX_PIN, INPUT);
+  attachInterrupt(digitalPinToInterrupt(MIX_PIN),
+                  mixPinInterrupt,
+                  CHANGE);
+
+
   ledOff();
 
-  pinMode(23, INPUT); 
+  // Seting PWM PINS input
+  // pinMode(TROTHLE_PIN, INPUT); 
+  // pinMode(MIX_PIN, INPUT); 
   // delay(5000); // Wait 5 seconds and turn off motor
   // leftMotor.Off(); // Turn Off left motor
 }
@@ -66,8 +109,23 @@ uint32_t startTime = millis();
 void loop() {
 
   // delay(1);
+  if (newPulseDurationAvailable) {
+    newPulseDurationAvailable = false;
+    unsigned long pulseDuration = pulseInTimeEnd - pulseInTimeBegin;
+    throttleOrder = map(pulseDuration, 985, 2061, -1000, 1000);
+    // Serial.print("pulseDuration : "); Serial.println(pulseDuration);
+    // Serial.print("throttleOrder : "); Serial.println(throttleOrder);
+  }
 
-  leftMotor.loop();
-  rightMotor.loop();
+  if (newMixDurationAvailable) {
+    newMixDurationAvailable = false;
+    unsigned long mixDuration = mixInTimeEnd - mixInTimeBegin;
+    mixOrder = map(mixDuration, 985, 2061, -1000, 1000);
+    // Serial.print("mixDuration : "); Serial.println(mixDuration);
+    // Serial.print("mixOrder : "); Serial.println(mixOrder);
+  }
+
+  leftMotor.loop(throttleOrder);
+  rightMotor.loop(mixOrder);
   // put your main code here, to run repeatedly:
 }
