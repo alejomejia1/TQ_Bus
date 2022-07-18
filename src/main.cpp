@@ -64,32 +64,6 @@ void setup() {
 uint32_t startTime = millis();
 
 void loop() {
-  
-  int16_t throttleOrder;
-  // int16_t channel;
-  // channel = pulseIn(23,HIGH);
-  // int16_t throttleOrder = map(channel, 998, 2000, -1000, 1000);
-  // Serial.print("Pulse:"); Serial.println(throttleOrder);
-
-  // if (throttleOrder > -50 && throttleOrder < 50) {
-  //   throttleOrder = 0;
-  // }
-
-  // if ((millis() - startTime < 5000) ) {
-  //   throttleOrder = 400;
-  // } 
-  // if ((millis() - startTime > 5000) && (millis() - startTime < 6000) ) {
-  //   throttleOrder = 0; 
-  // }
-  // if ((millis() - startTime > 6000) && (millis() - startTime < 11000) ) {
-  //   throttleOrder = -500;
-  // }
-  // if ((millis() - startTime > 11000) && (millis() - startTime < 12000) ) {
-  //   throttleOrder = 0; 
-  // } 
-  // if ((millis() - startTime > 12000) ) {
-  //   startTime = millis();
-  // } 
 
   // delay(1);
 
