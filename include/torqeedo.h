@@ -169,6 +169,55 @@ class TorqeedoMotor
         uint16_t master_sw_version; // master software version
     } _display_system_setup;
 
+    // Motor status
+    struct MotorStatus {
+        union {
+            uint8_t status_flags_value;
+            struct {
+                uint8_t temp_limit_motor    : 1;    // 0, motor speed limited due to motor temp
+                uint8_t temp_limit_pcb      : 1;    // 1, motor speed limited tue to PCB temp
+                uint8_t emergency_stop      : 1;    // 2, motor in emergency stop (must be cleared by master)
+                uint8_t running             : 1;    // 3, motor running
+                uint8_t power_limit         : 1;    // 4, motor power limited
+                uint8_t low_voltage_limit   : 1;    // 5, motor speed limited because of low voltage
+                uint8_t tilt                : 1;    // 6, motor is tilted
+                uint8_t reserved7           : 1;    // 7, unused (always zero)
+            } status_flags;
+        };
+
+
+        union {
+            uint16_t error_flags_value;
+            struct {
+                uint8_t overcurrent         : 1;    // 0, motor stopped because of overcurrent
+                uint8_t blocked             : 1;    // 1, motor stopped because it is blocked
+                uint8_t overvoltage_static  : 1;    // 2, motor stopped because voltage too high
+                uint8_t undervoltage_static : 1;    // 3, motor stopped because voltage too low
+                uint8_t overvoltage_current : 1;    // 4, motor stopped because voltage spiked high
+                uint8_t undervoltage_current: 1;    // 5, motor stopped because voltage spiked low
+                uint8_t overtemp_motor      : 1;    // 6, motor stopped because stator temp too high
+                uint8_t overtemp_pcb        : 1;    // 7, motor stopped because pcb temp too high
+                uint8_t timeout_rs485       : 1;    // 8, motor stopped because Drive message not received for too long
+                uint8_t temp_sensor_error   : 1;    // 9, motor temp sensor is defective (motor will not stop)
+                uint8_t tilt                : 1;    // 10, motor stopped because it was tilted
+                uint8_t unused11to15        : 5;    // 11 ~ 15 (always zero)
+            } error_flags;
+        };
+    } _motor_status;
+    uint32_t _last_send_motor_status_request_ms;    // system time (in milliseconds) that last motor status request was sent
+
+    // Motor params
+    struct MotorParam {
+        int16_t rpm;            // motor rpm
+        uint16_t power;         // motor power consumption in Watts
+        float voltage;          // motor voltage in volts
+        float current;          // motor current in amps
+        float pcb_temp;         // pcb temp in C
+        float stator_temp;      // stator temp in C
+        uint32_t last_update_ms;// system time that above values were updated
+    } _motor_param;
+    uint32_t _last_send_motor_param_request_ms;     // system time (in milliseconds) that last motor param request was sent
+
 
   public:
     TorqeedoMotor() { }
@@ -199,6 +248,10 @@ class TorqeedoMotor
 
     // report changes in error codes to user
     void report_error_codes();
+
+    bool get_batt_capacity_Ah(uint16_t &amp_hours);
+
+    bool get_batt_info(float &voltage, float &current_amps, float &temp_C, uint8_t &pct_remaining);
 
     // returns true if it is safe to send a message
     bool safe_to_send() const { return ((_send_delay_us == 0) && (_reply_wait_start_ms == 0)); }
@@ -232,6 +285,14 @@ class TorqeedoMotor
     int16_t getOrder();
 
     void debug(uint16_t buffer_size);
+
+     // error reporting
+    DisplaySystemStateFlags _display_system_state_flags_prev;   // backup of display system state flags
+    uint8_t _display_system_state_master_error_code_prev;       // backup of display system state master_error_code
+    uint32_t _last_error_report_ms;                             // system time that flag changes were last reported (used to prevent spamming user)
+    MotorStatus _motor_status_prev;                             // backup of motor status
+    
+
 
     const char * map_master_error_code_to_string(uint8_t code);
 

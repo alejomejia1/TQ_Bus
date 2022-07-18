@@ -75,25 +75,25 @@ void loop() {
   //   throttleOrder = 0;
   // }
 
-  if ((millis() - startTime < 5000) ) {
-    throttleOrder = 400;
-  } 
-  if ((millis() - startTime > 5000) && (millis() - startTime < 6000) ) {
-    throttleOrder = 0; 
-  }
-  if ((millis() - startTime > 6000) && (millis() - startTime < 11000) ) {
-    throttleOrder = -500;
-  }
-  if ((millis() - startTime > 11000) && (millis() - startTime < 12000) ) {
-    throttleOrder = 0; 
-  } 
-  if ((millis() - startTime > 12000) ) {
-    startTime = millis();
-  } 
+  // if ((millis() - startTime < 5000) ) {
+  //   throttleOrder = 400;
+  // } 
+  // if ((millis() - startTime > 5000) && (millis() - startTime < 6000) ) {
+  //   throttleOrder = 0; 
+  // }
+  // if ((millis() - startTime > 6000) && (millis() - startTime < 11000) ) {
+  //   throttleOrder = -500;
+  // }
+  // if ((millis() - startTime > 11000) && (millis() - startTime < 12000) ) {
+  //   throttleOrder = 0; 
+  // } 
+  // if ((millis() - startTime > 12000) ) {
+  //   startTime = millis();
+  // } 
 
   // delay(1);
 
   leftMotor.loop();
-  // rightMotor.loop();
+  rightMotor.loop();
   // put your main code here, to run repeatedly:
 }
