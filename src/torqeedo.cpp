@@ -50,6 +50,7 @@ void TorqeedoMotor::On()
     digitalWrite(_onoff, HIGH);
     delay(500); // Wait 500 ms
     digitalWrite(_onoff, LOW);
+    _startup_timer = millis();
 }
 
 void TorqeedoMotor::Off()
@@ -74,8 +75,8 @@ int16_t TorqeedoMotor::getOrder() {
 
     if (throttleOrder > -60 && throttleOrder < 60) throttleOrder = 0;
 
-    Serial.print("Pulse:"); Serial.println(throttleOrder);
-    Serial.print("Mix:"); Serial.println(mixOrder);
+    // Serial.print("Pulse:"); Serial.println(throttleOrder);
+    // Serial.print("Mix:"); Serial.println(mixOrder);
     return throttleOrder;
 }
 
@@ -86,27 +87,6 @@ void TorqeedoMotor::loop(int16_t throttleOrder)
 
     // 1ms loop delay
     delay(1);
-
-    // send motor speed
-    bool log_update = false;
-    // if (true) {
-    if (safe_to_send()) {
-        uint32_t now_ms = millis();
-
-        // if connected to motor
-        if (_type == ConnectionType::TYPE_MOTOR) {
-            
-        }
-
-        
-        // send motor speed
-        // if (true) {
-        if (_send_motor_speed) {
-            send_motor_speed_cmd();
-            _send_motor_speed = false;
-            log_update = true;
-        }
-    }
 
     // if (_send_motor_speed) {
     //     send_motor_speed_cmd();
@@ -146,6 +126,28 @@ void TorqeedoMotor::loop(int16_t throttleOrder)
                     set_reply_received();
                 }
             }
+        }
+    }
+
+
+    // send motor speed
+    bool log_update = false;
+    // if (true) {
+    if (safe_to_send()) {
+        uint32_t now_ms = millis();
+
+        // if connected to motor
+        if (_type == ConnectionType::TYPE_MOTOR) {
+            
+        }
+
+        
+        // send motor speed
+        // if (true) {
+        if (_send_motor_speed) {
+            send_motor_speed_cmd();
+            _send_motor_speed = false;
+            log_update = true;
         }
     }
     
@@ -276,11 +278,11 @@ void TorqeedoMotor::report_error_codes()
     }
     if (_display_system_state.flags.temp_warning) {
         Serial.print(msg_prefix);
-        Serial.print(" high temp");
+        Serial.println(" high temp");
     }
     if (_display_system_state.flags.temp_warning) {
         Serial.print(msg_prefix);
-        Serial.print(" batt nearly empty");
+        Serial.println(" batt nearly empty");
     }
     if (_display_system_state.master_error_code > 0) {
         const char *error_string = map_master_error_code_to_string(_display_system_state.master_error_code);
@@ -325,7 +327,7 @@ void TorqeedoMotor::report_error_codes()
     }
     if (_motor_status.error_flags.temp_sensor_error) {
         Serial.print(msg_prefix);
-        Serial.print(" temp sensor err");
+        Serial.println(" temp sensor err");
     }
     if (_motor_status.error_flags.tilt) {
         Serial.print(msg_prefix);
@@ -413,7 +415,7 @@ bool TorqeedoMotor::parse_byte(uint8_t b)
             }
 
             complete_msg_received = true;
-            //  debug(_received_buff_len);
+            // Serial.println(_received_buff_len);
 
         } else {
             // escape character handling
@@ -468,12 +470,17 @@ void TorqeedoMotor::parse_message()
 
     if ((msg_addr == MsgAddress::REMOTE1)) {
         RemoteMsgId msg_id = (RemoteMsgId)_received_buff[1];
-        Serial.print(millis());
-        Serial.print(" Speed request Msg Motor ");
-        Serial.println(_ser);
+        // Serial.print(millis());
+        // Serial.print(" Speed request Msg Motor ");
+        // Serial.println(_ser);
+        
+
         if (msg_id == RemoteMsgId::REMOTE) {
             // request received to send updated motor speed
-            _send_motor_speed = true;
+            if (_received_buff_len == 3) {
+                // Serial.println(_received_buff_len);
+                _send_motor_speed = true;
+            }
         }
         return;
     }
@@ -517,8 +524,19 @@ void TorqeedoMotor::parse_message()
                 // Serial.print("Display Motor State Msg: ");
                 // Serial.print("Voltage: ");Serial.print(_display_system_state.motor_voltage);Serial.print(" ,");
                 Serial.print(millis());
+                Serial.print(" Mot # "); Serial.print(_ser);
+                Serial.print(" Orden: "); Serial.print(_throttleOrder);
                 Serial.print(" RPM: ");Serial.print(_display_system_state.motor_rpm);Serial.print(" ,");
-                Serial.print("Temp Motor: ");Serial.print(motor_temp);Serial.println("");
+                Serial.print("Temp Pcb Motor: ");Serial.print(_display_system_state.motor_pcb_temp);Serial.print(" ");
+                Serial.print("Temp Stator Motor: ");Serial.print(_display_system_state.motor_stator_temp);Serial.print(" ");
+                Serial.print("Bat Charge %: ");Serial.print(_display_system_state.batt_charge_pct);Serial.print(" ");
+                Serial.print("Range Min: ");Serial.print(_display_system_state.range_minutes);Serial.println("");
+                if(_display_system_state.master_error_code > 0) {
+                    map_master_error_code_to_string(_display_system_state.master_error_code);
+                }
+                
+                // report_error_codes();
+
                 // Serial.println();    
             } else {
                 // unexpected length
@@ -537,11 +555,11 @@ void TorqeedoMotor::parse_message()
                 _display_system_setup.master_sw_version =  UINT16_VALUE(_received_buff[10], _received_buff[11]);
 
                 // Serial.println("Display Setup Msg :");
-                Serial.print(millis());
-                Serial.print(" Motor Type: ");Serial.print(_display_system_setup.motor_type);Serial.print(" ,");
-                Serial.print("SW Version: ");Serial.print(_display_system_setup.motor_sw_version);Serial.print("");
-                Serial.print(" Bat Level: ");Serial.print(_display_system_setup.batt_charge_pct);Serial.println("");
-                // Serial.print("Bat Type: ");Serial.print(_display_system_setup.batt_type);Serial.println("");
+                // Serial.print(millis());
+                // Serial.print(" Mot # "); Serial.print(_ser);
+                // Serial.print(" Bat Level: ");Serial.print(_display_system_setup.batt_charge_pct);Serial.print("");
+                // Serial.print(" Bat Cap: ");Serial.print(_display_system_setup.batt_capacity);Serial.println("");
+                // // Serial.print("Bat Type: ");Serial.print(_display_system_setup.batt_type);Serial.println("");
 
                 
             } else {
@@ -561,38 +579,41 @@ void TorqeedoMotor::parse_message()
     
     // Serial.print("-");
 
-    // // handle reply from motor
-    if ((msg_addr == MsgAddress::BUS_MASTER)) {
+    // handle reply from motor
+    if ( (msg_addr == MsgAddress::BUS_MASTER)) {
         // replies strangely do not return the msgid so we must have stored it
         MotorMsgId msg_id = (MotorMsgId)_reply_msgid;
-        Serial.println("Master Msg");
-
-
-        int16_t channel;
-        channel = pulseIn(23,HIGH);
-        int16_t throttleOrder = map(channel, 998, 2000, -1000, 1000);
-        Serial.print("Pulse:"); Serial.println(throttleOrder);
+        
 
         switch (msg_id) {
-        
+
         case MotorMsgId::PARAM:
             if (_received_buff_len == 15) {
-                Serial.print("Motor parameters");
+                _motor_param.rpm = (int16_t)UINT16_VALUE(_received_buff[2], _received_buff[3]);
+                _motor_param.power = UINT16_VALUE(_received_buff[4], _received_buff[5]);
+                _motor_param.voltage = UINT16_VALUE(_received_buff[6], _received_buff[7]) * 0.01;
+                _motor_param.current = UINT16_VALUE(_received_buff[8], _received_buff[9]) * 0.1;
+                _motor_param.pcb_temp = (int16_t)UINT16_VALUE(_received_buff[10], _received_buff[11]) * 0.1;
+                _motor_param.stator_temp = (int16_t)UINT16_VALUE(_received_buff[12], _received_buff[13]) * 0.1;
+                _motor_param.last_update_ms = millis();
+  
+                Serial.print(" Motor RPM: ");Serial.print(_motor_param.rpm);Serial.print(" ,");
+                Serial.print(" Temp PCB: ");Serial.print(_motor_param.pcb_temp);Serial.print(" ,");
+                Serial.print(" Temp Stator: ");Serial.print(_motor_param.stator_temp);Serial.print(" ,");
+
             } else {
                 // unexpected length
-                
                 _parse_error_count++;
             }
             break;
 
         case MotorMsgId::STATUS:
             if (_received_buff_len == 6) {
-                uint8_t status_flags_value = _received_buff[2];
-                uint16_t error_flags_value = UINT16_VALUE(_received_buff[3], _received_buff[4]);
-                Serial.print("Motor Status : ");
-                Serial.print(status_flags_value, BIN);
-                Serial.print(" ");
-                Serial.print(error_flags_value, BIN);
+                _motor_status.status_flags_value = _received_buff[2];
+                _motor_status.error_flags_value = UINT16_VALUE(_received_buff[3], _received_buff[4]);
+
+                // report any errors
+                report_error_codes();
             } else {
                 // unexpected length
                 _parse_error_count++;
@@ -643,59 +664,44 @@ uint16_t TorqeedoMotor::UINT16_VALUE(uint8_t byteH, uint8_t byteL)
 // for motor connection this sends the "Motor Drive (0x82)" message
 void TorqeedoMotor::send_motor_speed_cmd()
 {
-    // if (millis() - _starttime < 2000) {
-    //     _motor_speed_desired = 0;
-    // } 
-    // if (millis() - _starttime > 2000 && millis() - _starttime < 4000) {
-    //     _motor_speed_desired = 104;
-    // } 
-    // if (millis() - _starttime > 4000) {
-    //     _motor_speed_desired = 237;
-    // } 
 
-    // Serial.print("Throttle Order:");
-    // Serial.println(_throttleOrder);
-
-    _motor_speed_desired = _throttleOrder;
+    if (millis() - _startup_timer < 5000) {
+        Serial.println("Initial speed always 0");
+        _motor_speed_desired = 0;
+    } else {
+        _motor_speed_desired = _throttleOrder;
+    }
+   
     
     // Serial.println("Sending speed command");
     // updated limited motor speed
     int16_t mot_speed_limited = calc_motor_speed_limited(_motor_speed_desired);
 
-    // Serial.print("Throttle Order limited:");
-    // Serial.println(_motor_speed_desired);
-    // by default use tiller connection command
+    // Construct Speed Command Message
     uint8_t mot_speed_cmd_buff[] = {(uint8_t)MsgAddress::BUS_MASTER, 0x0, 0x5, 0x0, highByte(mot_speed_limited), lowByte(mot_speed_limited)};
-
-    // update message if using motor connection
-    // if (_type == ConnectionType::TYPE_MOTOR) {
-    //     const uint8_t motor_power = (uint8_t)constrain(_motor_power, 0, 100);
-    //     mot_speed_cmd_buff[0] = (uint8_t)MsgAddress::MOTOR;
-    //     mot_speed_cmd_buff[1] = (uint8_t)MotorMsgId::DRIVE;
-    //     mot_speed_cmd_buff[2] = (mot_speed_limited == 0 ? 0 : 0x01) | (_motor_clear_error ? 0x04 : 0);  // 1:enable motor, 2:fast off, 4:clear error
-    //     mot_speed_cmd_buff[3] = mot_speed_limited == 0 ? 0 : motor_power;   // motor power from 0 to 100
-
-
-    //     // reset motor clear error request
-    //     _motor_clear_error = false;
-    // }
-
-    // for (uint8_t i=0; i<sizeof(mot_speed_cmd_buff) ; i++) {
-    //     Serial.print(mot_speed_cmd_buff[i], HEX);
-    //     Serial.print(" ");
-    // }   
-    // Serial.println("");
     
     // send a message
-    if (send_message(mot_speed_cmd_buff, sizeof(mot_speed_cmd_buff))) {
-        // record time of send for health reporting
-        // set_expected_reply_msgid((uint8_t)msg_id);
-        // _order = getOrder();
-        Serial.print(millis());
-        Serial.println(" Speed cmd snd");
-        
+    if (safe_to_send()) {
+        if (send_message(mot_speed_cmd_buff, sizeof(mot_speed_cmd_buff))) {
+            // Serial.print(millis());
+            // Serial.println(" Speed cmd snd");
+            _last_send_motor_ms = millis();
+        }
 
     }
+}
+
+
+void TorqeedoMotor::send_tiller_init()
+{
+
+    uint8_t message_buff[] = {0x01, 0x01};
+    // send a message
+    if (send_message(message_buff, sizeof(message_buff))) {
+        Serial.println("Tiller initial cmd");
+        _last_send_motor_ms = millis();
+    }
+
 }
 
 

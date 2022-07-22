@@ -28,6 +28,8 @@ class TorqeedoMotor
     int _onoff;
     int _ser;
     int _order;
+    int32_t _startup_timer;
+    
     int32_t _starttime;
     int16_t _throttleOrder;
 
@@ -259,6 +261,9 @@ class TorqeedoMotor
     // send a motor speed command as a value from -1000 to +1000
     // value is taken directly from SRV_Channel
     void send_motor_speed_cmd();
+
+
+    void send_tiller_init();
 
     // send a message to the motor with the specified message contents
     // msg_contents should not include the header, footer or CRC
