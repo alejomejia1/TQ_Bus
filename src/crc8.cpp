@@ -1,3 +1,8 @@
+#define CRC8_H
+
+#ifndef CRC8_H
+#define CRC8_H
+
 #include <Arduino.h>
 #include "crc8.h"
 
@@ -18,3 +23,5 @@ uint8_t CRC8::crc8_maxim(const uint8_t *addr, uint8_t len)
 
   return crc;
 }
+
+#endif

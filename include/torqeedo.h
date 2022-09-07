@@ -1,3 +1,5 @@
+#define TORQEEDO_H
+
 #pragma once
 #ifndef TORQEEDO_H
 #define TORQEEDO_H
@@ -24,7 +26,6 @@ class TorqeedoMotor
   private:
     int _tx;
     int _rx;
-    int _rts;
     int _onoff;
     int _ser;
     int _order;
@@ -221,7 +222,7 @@ class TorqeedoMotor
 
   public:
     TorqeedoMotor() { }
-    void begin(uint8_t ser,uint8_t tx, uint8_t rx, uint8_t rts, uint8_t onoff);
+    void begin(uint8_t ser, uint8_t tx, uint8_t rx, uint8_t onoff);
 
     // consume incoming messages from motor, reply with latest motor speed
     void loop();
