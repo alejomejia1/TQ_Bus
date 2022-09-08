@@ -6,7 +6,12 @@
 #include <Adafruit_NeoPixel.h>
 #include <Wire.h>               // Only needed for Arduino 1.6.5 and earlier
 #include "SSD1306Wire.h"        // legacy: #include "SSD1306.h"
-#include "sbus_protocol.h"
+#include "SBUS.h"
+
+// Instantiate PCF8574
+#include <PCF8574.h>
+PCF8574 pcf20(0x20);
+const byte Relay0 = 0;
 
 #define LED_PIN    2
 // How many NeoPixels are attached to the Arduino?
@@ -16,13 +21,20 @@ Adafruit_NeoPixel strip = Adafruit_NeoPixel(LED_COUNT, LED_PIN, NEO_GRB + NEO_KH
 
 SSD1306Wire display(0x3c, SDA, SCL); 
 
+// a SBUS object, which is on hardware
+// serial port 1
+SBUS x8r(Serial);
 
-sbus_protocol sbus(Serial);
+// channel, fail safe, and lost frames data
+uint16_t channels[16];
+bool failSafe;
+bool lostFrame;
+bool togleLed = true;
 
 
 #include "torqeedo_motor_control.h"
 
-#include "sbus_from_master_control_board_externals.h"
+// #include "sbus_from_master_control_board_externals.h"
 
 bool printMessage=false;
 
@@ -114,29 +126,31 @@ void IRAM_ATTR mainTimerTimeout_slot()	//each 100ms
 	}
 	#endif
 
-	if (nrOfVoidSbusComms<9)
+	if (!lostFrame)
 	{
+		// ledOn(3,0,128,0,50);
 		#ifdef INCLUDE_MOTORS_FUNCTIONS
 		motor[0].sBusCommsOk=true;
-		motor[0].up_down_sbus_throttle_val=sBusCh[0];
-		motor[0].left_right_sbus_throttle_val=sBusCh[1];
-		motor[0].arm_button_val=sBusCh[2];
+		motor[0].up_down_sbus_throttle_val=channels[2];
+		motor[0].left_right_sbus_throttle_val=channels[3];
+		motor[0].arm_button_val=channels[4];
 		
 		motor[1].sBusCommsOk=true;
-		motor[1].up_down_sbus_throttle_val=sBusCh[0];
-		motor[1].left_right_sbus_throttle_val=sBusCh[1];
-		motor[1].arm_button_val=sBusCh[2];
+		motor[1].up_down_sbus_throttle_val=channels[2];
+		motor[1].left_right_sbus_throttle_val=channels[3];
+		motor[1].arm_button_val=channels[4];
 		#endif
-		nrOfVoidSbusComms++;
+		// nrOfVoidSbusComms++;
 	}
-	else if (nrOfVoidSbusComms==9)
+	else if (failSafe || lostFrame)
 	{
 		Serial.println("sbus protocol comms lost");
-		sBusCh[0]=1072;
-		sBusCh[1]=1072;
-		sBusCh[2]=1072;
-		sBusFailsafe=false;
-		nrOfVoidSbusComms=10;
+		// ledOn(3,128,0,0,50);
+		// sBusCh[0]=1072;
+		// sBusCh[1]=1072;
+		// sBusCh[2]=1072;
+		// sBusFailsafe=false;
+		// nrOfVoidSbusComms=10;
 	}
 	else
 	{
@@ -184,27 +198,32 @@ void setup()
 	ledOn(1,160,160,0,50);
 
 	// External leds (TODO:       Define number and function)
-	ledOn(2,160,0,0,50);
-	ledOn(3,0,160,0,50);
-	ledOn(4,0,0,160,50);
-	ledOn(5,160,0,0,50);
-	ledOn(6,0,160,0,50);
-	ledOn(7,0,0,160,50);
-	ledOn(8,160,160,0,50);
-	ledOn(9,0,160,160,50);
-	ledOn(10,160,0,160,50);
-	ledOn(11,160,160,160,50);
-	ledOn(12,0,160,0,50);
-	ledOn(13,0,0,160,50);
+	// ledOn(2,160,0,0,50);
+	// ledOn(3,0,160,0,50);
+	// ledOn(4,0,0,160,50);
+	// ledOn(5,160,0,0,50);
+	// ledOn(6,0,160,0,50);
+	// ledOn(7,0,0,160,50);
+	// ledOn(8,160,160,0,50);
+	// ledOn(9,0,160,160,50);
+	// ledOn(10,160,0,160,50);
+	// ledOn(11,160,160,160,50);
+	// ledOn(12,0,160,0,50);
+	// ledOn(13,0,0,160,50);
+	for (int i = 2 ; i<14 ; i++) {
+		ledOff(i);
+	}
 
 	// Initialising the UI will init the display too.
 	display.init();
 
 	display.flipScreenVertically();
-	display.setFont(ArialMT_Plain_24);
-	display.drawString(5, 12, "Travel 1103");
 	display.setFont(ArialMT_Plain_16);
-	display.drawString(15, 40, "Motor Control");
+	display.drawString(25, 0, "Torqeedo");
+	display.setFont(ArialMT_Plain_24);
+	display.drawString(5, 16, "Travel 1103");
+	display.setFont(ArialMT_Plain_16);
+	display.drawString(15, 44, "Motor Control");
 	display.display();
 
 	Serial.begin(57600, SERIAL_8N1, 21, 23);	//rx 21, tx 23
@@ -235,9 +254,12 @@ void setup()
 	#endif
 
 	#ifdef INCLUDE_SBUS_RECEIVER
-		sbus.begin(23, 19, true , 100000);	// Serial 0, Rx 23, Tx 19, inverted for sbus
-		sbus.initVariables();
-		sbus.resetChannels();
+		// begin the SBUS communication
+  		x8r.begin(23,19,true, 100000);
+	#endif
+
+	#ifdef INCLUDE_PCF8574
+		pcf20.begin();
 	#endif
 	
 	delay(1000);
@@ -390,8 +412,44 @@ void loop()
 #endif
 
 	//SBUS INFO FROM MASTER CONTROL BOARD
-	if (Serial.available())
-		sbus.msgReceived_slot();
+	if(x8r.read(&channels[0], &failSafe, &lostFrame)){
+		// x8r.write(&channels[0]);1
+		ledOn(2,60,0,0,50);
+
+		// for (int i = 0 ; i<=8 ; i++) {
+		// 	Serial.print(channels[i]);
+		// 	Serial.print('|');
+		// }
+		// Serial.print(failSafe);
+		// Serial.print('|');
+		// Serial.println(lostFrame);
+
+		togleLed = true;
+		
+	}
+
+	if ((failSafe || lostFrame) && togleLed) {
+		ledOn(2,0,60,0,50);
+		togleLed = false;
+	}
+
+	if (channels[4] < 600) {
+		ledOn(3,0,60,0,50);
+	}
+	if (channels[4] > 700) {
+		ledOn(3,60,0,0,50);
+	}
+
+	if (channels[5] < 600) {
+		ledOn(4,0,60,0,50);
+		pcf20.write(Relay0,1);
+	}
+	if (channels[5] > 700) {
+		ledOn(4,60,0,0,50);
+		pcf20.write(Relay0,0);
+	}
+
+
 	// bytesToRead=Serial.available();
 	// if (bytesToRead)
 	// {

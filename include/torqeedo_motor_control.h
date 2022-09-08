@@ -5,6 +5,7 @@
 #define INCLUDE_MOTOR0
 #define INCLUDE_MOTOR1
 #define INCLUDE_SBUS_RECEIVER
+#define INCLUDE_PCF8574
 
 #include <Arduino.h>
 #include "HardwareSerial.h"
