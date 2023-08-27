@@ -7,14 +7,12 @@
  * Motor L:
  * TX -> 25
  * RX -> 26
- * RTS -> 14
- * 
+ *
  * Motor R
  * TX -> 27
  * RX -> 15
- * RTS -> 4
- * 
- * 
+ *
+ *
  */
 
 #include "Arduino.h"
@@ -24,17 +22,16 @@ class TorqeedoMotor
   private:
     int _tx;
     int _rx;
-    int _rts;
     int _onoff;
     int _ser;
     int _order;
     int32_t _startup_timer;
-    
+
     int32_t _starttime;
     int16_t _throttleOrder;
 
         // parameters
-    
+
 
     enum class ParseState {
         WAITING_FOR_HEADER = 0,
@@ -223,7 +220,7 @@ class TorqeedoMotor
 
   public:
     TorqeedoMotor() { }
-    void begin(uint8_t ser,uint8_t tx, uint8_t rx, uint8_t rts, uint8_t onoff);
+    void begin(uint8_t ser,uint8_t tx, uint8_t rx, uint8_t onoff);
 
     // consume incoming messages from motor, reply with latest motor speed
     void loop(int16_t throttleOrder);
@@ -244,7 +241,7 @@ class TorqeedoMotor
     // mark reply received. should be called whenever a message is received regardless of whether we are actually waiting for a reply
     void set_reply_received();
 
-    // Calculate CRC8-Maxim 
+    // Calculate CRC8-Maxim
     uint8_t crc8_maxim(const uint8_t *data, uint16_t length);
 
 
@@ -276,7 +273,7 @@ class TorqeedoMotor
     bool add_byte_to_message(uint8_t byte_to_add, uint8_t msg_buff[], uint8_t msg_buff_size, uint8_t &num_bytes) const;
 
     // set pin to enable sending a message
-    void send_start();
+    // void send_start();
 
     // record msgid of message to wait for and set timer for reply timeout handling
     void set_expected_reply_msgid(uint8_t msg_id);
@@ -296,7 +293,7 @@ class TorqeedoMotor
     uint8_t _display_system_state_master_error_code_prev;       // backup of display system state master_error_code
     uint32_t _last_error_report_ms;                             // system time that flag changes were last reported (used to prevent spamming user)
     MotorStatus _motor_status_prev;                             // backup of motor status
-    
+
 
 
     const char * map_master_error_code_to_string(uint8_t code);
@@ -312,7 +309,7 @@ class TorqeedoMotor
 
 //    void tx();
 //    void rx();
-    
+
 };
 
 #endif

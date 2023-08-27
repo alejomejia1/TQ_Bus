@@ -19,30 +19,27 @@
 #define MIX_PIN 19
 
 
-void TorqeedoMotor::begin(uint8_t ser,uint8_t tx, uint8_t rx, uint8_t rts, uint8_t onoff)
+void TorqeedoMotor::begin(uint8_t ser,uint8_t tx, uint8_t rx,  uint8_t onoff)
 {
-    _rts = rts;
+
     _onoff = onoff;
     _ser = ser;
     _type == ConnectionType::TYPE_TILLER;
     _starttime = millis();
     _order = 0;
 
-    pinMode(_rts, OUTPUT); 
+
     pinMode(_onoff, OUTPUT);
 
 
     if(_ser==1) {
         Serial1.begin(19200,SERIAL_8N1, tx, rx);
-        digitalWrite(_rts,0);
-    } 
+    }
 
     if (_ser==2) {
         Serial2.begin(19200,SERIAL_8N1, tx, rx);
-        digitalWrite(_rts,0);
-        
     }
-    
+
 }
 
 void TorqeedoMotor::On()
@@ -80,7 +77,7 @@ int16_t TorqeedoMotor::getOrder() {
     return throttleOrder;
 }
 
-void TorqeedoMotor::loop(int16_t throttleOrder) 
+void TorqeedoMotor::loop(int16_t throttleOrder)
 {
     _initialised = true;
     _throttleOrder = throttleOrder;
@@ -114,19 +111,6 @@ void TorqeedoMotor::loop(int16_t throttleOrder)
                 }
             }
         }
-    } else {
-        uint32_t nbytes = Serial2.available();
-        while (nbytes-- > 0) {
-            int16_t b = Serial2.read();
-            if (b >= 0 ) {
-                if (parse_byte((uint8_t)b)) {
-                    // complete message received, parse it!
-                    parse_message();
-                    // clear wait-for-reply because if we are waiting for a reply, this message must be it
-                    set_reply_received();
-                }
-            }
-        }
     }
 
 
@@ -138,10 +122,10 @@ void TorqeedoMotor::loop(int16_t throttleOrder)
 
         // if connected to motor
         if (_type == ConnectionType::TYPE_MOTOR) {
-            
+
         }
 
-        
+
         // send motor speed
         // if (true) {
         if (_send_motor_speed) {
@@ -150,9 +134,9 @@ void TorqeedoMotor::loop(int16_t throttleOrder)
             log_update = true;
         }
     }
-    
 
-    
+
+
 }
 
 static const uint8_t crc8_table_maxim[] = {
@@ -454,7 +438,7 @@ void TorqeedoMotor::parse_message()
 {
     // message address (i.e. target of message)
     const MsgAddress msg_addr = (MsgAddress)_received_buff[0];
-    
+
     // Serial.println("Parsing msg");
 
     //handle messages sent to "remote" (aka tiller)
@@ -473,7 +457,7 @@ void TorqeedoMotor::parse_message()
         // Serial.print(millis());
         // Serial.print(" Speed request Msg Motor ");
         // Serial.println(_ser);
-        
+
 
         if (msg_id == RemoteMsgId::REMOTE) {
             // request received to send updated motor speed
@@ -484,7 +468,7 @@ void TorqeedoMotor::parse_message()
         }
         return;
     }
-    
+
 
     // handle messages sent to Display
     if ((msg_addr == MsgAddress::LCD)) {
@@ -492,7 +476,7 @@ void TorqeedoMotor::parse_message()
         switch (msg_id) {
         case DisplayMsgId::SYSTEM_STATE :
             if (_received_buff_len == 30) {
-                
+
                 _display_system_state.flags.value = UINT16_VALUE(_received_buff[2], _received_buff[3]);
                 _display_system_state.master_state = _received_buff[4]; // deprecated
                 _display_system_state.master_error_code = _received_buff[5];
@@ -511,7 +495,7 @@ void TorqeedoMotor::parse_message()
                 _display_system_state.temp_sw = _received_buff[27];
                 _display_system_state.temp_rp = _received_buff[28];
                 _display_system_state.last_update_ms = millis();
-                
+
                 // // update esc telem sent to ground station
                 const uint8_t esc_temp = max(_display_system_state.temp_sw, _display_system_state.temp_rp);
                 const uint8_t motor_temp = max(_display_system_state.motor_pcb_temp, _display_system_state.motor_stator_temp);
@@ -534,10 +518,10 @@ void TorqeedoMotor::parse_message()
                 if(_display_system_state.master_error_code > 0) {
                     map_master_error_code_to_string(_display_system_state.master_error_code);
                 }
-                
+
                 // report_error_codes();
 
-                // Serial.println();    
+                // Serial.println();
             } else {
                 // unexpected length
                 _parse_error_count++;
@@ -561,7 +545,7 @@ void TorqeedoMotor::parse_message()
                 // Serial.print(" Bat Cap: ");Serial.print(_display_system_setup.batt_capacity);Serial.println("");
                 // // Serial.print("Bat Type: ");Serial.print(_display_system_setup.batt_type);Serial.println("");
 
-                
+
             } else {
                 // unexpected length
                 Serial.println("Error parsing Msg");
@@ -576,14 +560,14 @@ void TorqeedoMotor::parse_message()
     }
 
 
-    
+
     // Serial.print("-");
 
     // handle reply from motor
     if ( (msg_addr == MsgAddress::BUS_MASTER)) {
         // replies strangely do not return the msgid so we must have stored it
         MotorMsgId msg_id = (MotorMsgId)_reply_msgid;
-        
+
 
         switch (msg_id) {
 
@@ -596,7 +580,7 @@ void TorqeedoMotor::parse_message()
                 _motor_param.pcb_temp = (int16_t)UINT16_VALUE(_received_buff[10], _received_buff[11]) * 0.1;
                 _motor_param.stator_temp = (int16_t)UINT16_VALUE(_received_buff[12], _received_buff[13]) * 0.1;
                 _motor_param.last_update_ms = millis();
-  
+
                 Serial.print(" Motor RPM: ");Serial.print(_motor_param.rpm);Serial.print(" ,");
                 Serial.print(" Temp PCB: ");Serial.print(_motor_param.pcb_temp);Serial.print(" ,");
                 Serial.print(" Temp Stator: ");Serial.print(_motor_param.stator_temp);Serial.print(" ,");
@@ -635,7 +619,7 @@ void TorqeedoMotor::parse_message()
 
 // Convert 2 Hex bytes received to unsigned int 16 bits
 uint16_t TorqeedoMotor::UINT16_VALUE(uint8_t byteH, uint8_t byteL)
-{ 
+{
     unsigned long MSB = byteH << 8;
     unsigned long LSB = byteL;
     uint16_t result = MSB + LSB;
@@ -671,15 +655,15 @@ void TorqeedoMotor::send_motor_speed_cmd()
     } else {
         _motor_speed_desired = _throttleOrder;
     }
-   
-    
+
+
     // Serial.println("Sending speed command");
     // updated limited motor speed
     int16_t mot_speed_limited = calc_motor_speed_limited(_motor_speed_desired);
 
     // Construct Speed Command Message
     uint8_t mot_speed_cmd_buff[] = {(uint8_t)MsgAddress::BUS_MASTER, 0x0, 0x5, 0x0, highByte(mot_speed_limited), lowByte(mot_speed_limited)};
-    
+
     // send a message
     if (safe_to_send()) {
         if (send_message(mot_speed_cmd_buff, sizeof(mot_speed_cmd_buff))) {
@@ -819,20 +803,20 @@ bool TorqeedoMotor::send_message(const uint8_t msg_contents[], uint8_t num_bytes
     // for (uint8_t i=0; i<send_buff_num_bytes ; i++) {
     //     Serial.print(send_buff[i], HEX);
     //     Serial.print(" ");
-    // }   
+    // }
     // Serial.println("");
-    
+
     // set send pin
-    send_start();
+    // send_start();
 
     // write message
     if (_ser == 1) {
         Serial1.write(send_buff, send_buff_num_bytes);
     } else {
-        Serial2.write(send_buff, send_buff_num_bytes); 
+        Serial2.write(send_buff, send_buff_num_bytes);
     }
-    
-    
+
+
     // record start and expected delay to send message
     _send_start_us = micros();
     _send_delay_us = calc_send_delay_us(send_buff_num_bytes);
@@ -840,10 +824,10 @@ bool TorqeedoMotor::send_message(const uint8_t msg_contents[], uint8_t num_bytes
     // for (uint8_t i=0; i<send_buff_num_bytes ; i++) {
     //     Serial.print(send_buff[i], HEX);
     //     Serial.print(" ");
-    // }   
+    // }
     // Serial.println("");
     // delay(6);
-    // digitalWrite(_rts,0);
+
 
     return true;
 }
@@ -884,12 +868,12 @@ bool TorqeedoMotor::add_byte_to_message(uint8_t byte_to_add, uint8_t msg_buff[],
 }
 
 // set DE Serial CTS pin to enable sending commands to motor
-void TorqeedoMotor::send_start()
-{
-    // set gpio pin or serial port's CTS pin
-    digitalWrite(_rts, 1);
-    delay(1);
-}
+// void TorqeedoMotor::send_start()
+// {
+//     // set gpio pin or serial port's CTS pin
+//     digitalWrite(_rts, 1);
+//     delay(1);
+// }
 
 // set DE Serial CTS pin to enable sending commands to motor
 void TorqeedoMotor::debug(uint16_t buffer_size)
@@ -923,9 +907,6 @@ void TorqeedoMotor::check_for_send_end()
     }
 
     _send_delay_us = 0;
-
-    // unset gpio or serial port's CTS pin
-    digitalWrite(_rts, 0);
 }
 
 // check for timeout waiting for reply message
